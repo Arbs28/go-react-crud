@@ -1,9 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
+	"log"
+	"net/http"
 
-	"github.com/gofiber/fiber/v2"
+	restful "github.com/emicklei/go-restful/v3"
+	"github.com/gin-gonic/gin"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type Todo struct {
@@ -13,81 +18,62 @@ type Todo struct {
 	Body string `json:"body"`
 }
 
+
+
+func getAllTodos(c *gin.Context){
+
+	connectionString := "root:root@tcp(localhost:3306)/test"
+
+	db,err := sql.Open("mysql", connectionString)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = db.Ping()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Connected to the database")
+
+	rows,err := db.Query("SELECT * from todos")
+
+
+	if err != nil {
+		log.Println("Error",err)
+	}
+	
+	defer rows.Close()
+
+	var todos []Todo
+
+	for rows.Next() {
+		var todo Todo
+		errs := rows.Scan(&todo.ID, &todo.Title, &todo.Done)
+		if errs != nil {
+			log.Println("Error scanning rows:", errs)
+			// return
+		}
+		todos = append(todos, todo)
+	}
+	 c.IndentedJSON(http.StatusOK, todos)
+}
+
+
 func main() {
 
-	fmt.Print("Hello world")
+	ws := new(restful.WebService)
 
-	app := fiber.New()
+	ws.
+		Path("/users").
+		Consumes(restful.MIME_XML, restful.MIME_JSON).
+		Produces(restful.MIME_JSON, restful.MIME_XML) // you can specify this per route as well
 
-	todos := []Todo{}
-
-
-	app.Get("/test" ,func(c *fiber.Ctx) error{
-		return c.SendString("Ok")
-	})
-
-	//get all Todos
-	app.Get("/api/todos" ,func(c *fiber.Ctx) error{
-		return c.JSON(todos)
-	})
-
-
-	//post a new todo pass title and body as json
-	app.Post("/api/todos" ,func(c *fiber.Ctx) error{
-
-		todo := &Todo{}
-		
-		if err := c.BodyParser(todo); err != nil {
-			return err
-		}
-
-		 todo.ID = len(todos) + 1
-
-		 todos = append(todos, *todo)
-
-		 return c.JSON(todos)
-	})
-
-
-	//mark a todo done
-	app.Patch("/api/todos/:id/done" ,func(c *fiber.Ctx) error {
-		id,err := c.ParamsInt("id")
-
-		if err != nil{
-			return c.Status(401).SendString("Invalid Id")
-		}
-
-		for i,t := range todos {
-			if t.ID == id {
-				todos[i].Done = true
-				break
-			}
-		}
-
-		return c.JSON(todos)
-	})
-
-	//delete a todo
-	app.Delete("/api/todos/:id" ,func(c *fiber.Ctx) error {
-		id,err := c.ParamsInt("id")
-
-
-		if err != nil{
-			return c.Status(401).SendString("Invalid Id")
-		}
-
-		for i := len(todos) - 1; i >= 0; i-- {
-
-
-			if todos[i].ID == id {
-				todos = append(todos[:i],todos[i+1:]...)
-			}
-		}
-
-		return c.JSON(todos)
-	})
+	tags := []string{"users"}
 
 
 
-	app.Listen(":4000")
+    router.Run("localhost:8080")
+
+
 }
